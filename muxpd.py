@@ -14,9 +14,11 @@ class Muxpd(object):
     def __init__(self, newhost=None, newport=None):
         oldhost, oldport = None, None
         self.socatp = None
+        self.ctrls = None
 
         # first: try to connect to a currently running daemon
         if os.path.exists(sockfile):
+            print "sockfile exists"
             try:
                 csock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 csock.connect(sockfile)
@@ -24,7 +26,8 @@ class Muxpd(object):
                 oldhost, oldport = csock.recv(1024).split(" ")
                 csock.close()
                 raise ChangeRequestDelegated()
-            except socket.error:
+            except socket.error, e:
+                print e
                 os.remove(sockfile)
         
         connected = False
@@ -84,10 +87,9 @@ class Muxpd(object):
 
     def __del__(self):
         print "dieing."
-        try:    self.ctrls.shutdown()
-        except: pass
-        try:    os.remove(sockfile)
-        except: pass
+        if self.ctrls:
+            self.ctrls.close()
+            os.remove(sockfile)
         try:    self.socatp.terminate()
         except: pass
         time.sleep(0.5)
@@ -109,4 +111,3 @@ if __name__ == "__main__":
         mux.loop()
     except ChangeRequestDelegated:
         pass
-    del mux
