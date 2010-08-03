@@ -8,19 +8,25 @@ import time
 
 sockfile = os.path.expanduser("~/.muxpd.sock")
 
+class ChangeRequestDelegated(Exception): pass
+
 class Muxpd(object):
     def __init__(self, newhost=None, newport=None):
         oldhost, oldport = None, None
+        self.socatp = None
+
         # first: try to connect to a currently running daemon
         if os.path.exists(sockfile):
             try:
                 csock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 csock.connect(sockfile)
-                csock.send("die")
+                csock.send("change %s %s" % (newhost, newport))
                 oldhost, oldport = csock.recv(1024).split(" ")
                 csock.close()
-            except Exception, e:
-                print e
+                raise ChangeRequestDelegated()
+            except socket.error:
+                os.remove(sockfile)
+        
         connected = False
         while not connected:
             try:
@@ -43,6 +49,11 @@ class Muxpd(object):
             self.port = newport
 
         # next. start socat
+        self.start_socat()
+
+    def start_socat(self):
+        if self.socatp:
+            self.socatp.terminate()
         opts = ["socat", "tcp-listen:6600,reuseaddr,fork,forever", "tcp-connect:%s:%s" % (self.host, self.port)]
         self.socatp = subprocess.Popen(opts)
         print opts
@@ -53,10 +64,16 @@ class Muxpd(object):
             rlist, wlist, xlist = select.select([self.ctrls], [], [])
             if rlist:
                 (sock, addr) = self.ctrls.accept()
-                if sock.recv(1024).startswith("die"):
-                    die = True
-
                 sock.send("%s %s" % (self.host, self.port))
+                
+                data = sock.recv(1024)
+                if data.startswith("die"):
+                    die = True
+                elif data.startswith("change"):
+                    _, self.host, self.port = data.split(" ")
+                    self.port = int(self.port)
+                    self.start_socat()
+
                 sock.close()
         
         print "dieing"
@@ -74,6 +91,9 @@ if __name__ == "__main__":
             host, port = sys.argv[-1].split(":")
         else:
             host, port = sys.argv[-1], 6600
-
-    mux = Muxpd(host, port)
-    mux.loop()
+    
+    try:
+        mux = Muxpd(host, port)
+        mux.loop()
+    except ChangeRequestDelegated:
+        pass
