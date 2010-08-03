@@ -9,12 +9,27 @@ import time
 sockfile = os.path.expanduser("~/.muxpd.sock")
 
 class ChangeRequestDelegated(Exception): pass
+class MPDUnreachable(Exception): pass
+
+def try_mpd_connection(host, port):
+    try:
+        mpdsock = socket.create_connection((host, port))
+        if not mpdsock.recv(1024).startswith("OK"):
+            raise Exception
+     except:
+         mpdsock.shutdown()
+         return False
+     mpdsock.shutdown()
+     return True
 
 class Muxpd(object):
     def __init__(self, newhost=None, newport=None):
         oldhost, oldport = None, None
         self.socatp = None
         self.ctrls = None
+
+        if not try_mpd_connection(newhost, newport):
+            raise MPDUnreachable()
 
         # first: try to connect to a currently running daemon
         if os.path.exists(sockfile):
@@ -111,3 +126,5 @@ if __name__ == "__main__":
         mux.loop()
     except ChangeRequestDelegated:
         pass
+    except MPDUnreachable:
+        print "there seems to be no MPD listening at %s:%s!" % (host, port)
