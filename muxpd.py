@@ -82,6 +82,18 @@ class Muxpd(object):
         time.sleep(1)
         self.socatp.kill()
 
+    def __del__(self):
+        print "dieing."
+        try:    self.ctrls.shutdown()
+        except: pass
+        try:    os.remove(sockfile)
+        except: pass
+        try:    self.socatp.terminate()
+        except: pass
+        time.sleep(0.5)
+        try:    self.socatp.kill()
+        except: pass
+
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         host = "localhost"
@@ -97,3 +109,4 @@ if __name__ == "__main__":
         mux.loop()
     except ChangeRequestDelegated:
         pass
+    del mux
