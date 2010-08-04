@@ -12,15 +12,16 @@ class ChangeRequestDelegated(Exception): pass
 class MPDUnreachable(Exception): pass
 
 def try_mpd_connection(host, port):
+    mpdsock = None
     try:
         mpdsock = socket.create_connection((host, port))
         if not mpdsock.recv(1024).startswith("OK"):
             raise Exception
-     except:
-         mpdsock.shutdown()
-         return False
-     mpdsock.shutdown()
-     return True
+    except:
+        return False
+    if mpdsock:
+        mpdsock.shutdown(socket.SHUT_RDWR)
+    return True
 
 class Muxpd(object):
     def __init__(self, newhost=None, newport=None):
